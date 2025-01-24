@@ -11,5 +11,6 @@ pre-commit:
 run-polars:
 	uv run run_polars.py
 
+.PHONY: run-duckdb
 run-duckdb:
 	uv run run_duckdb.py
