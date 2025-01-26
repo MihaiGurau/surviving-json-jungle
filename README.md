@@ -16,10 +16,16 @@ Run the Polars script.
 make run-polars
 ```
 
+Run the DuckDB script.
+
+```bash
+make run-duckdb
+```
+
 ## TODO
 
-- [ ] Add DuckDB processing scripts.
-- [ ] Refine transformations, keeping only what's necessary.
+- [x] Add DuckDB processing scripts.
+- [x] Refine transformations, keeping only what's necessary.
 - [ ] Look into query plans?
 - [ ] Add some testing for better checks that the transformations work well.
 

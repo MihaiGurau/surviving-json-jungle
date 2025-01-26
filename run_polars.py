@@ -271,26 +271,6 @@ def summarize(data: pl.LazyFrame) -> None:
         print(filter_for_species_by_name(data, ["polyphemus", "dromedarius"]).collect())
 
 
-# def fix_nested_date_parsing(data: pl.LazyFrame):
-#     # TODO MG: figure out why the nested date is not parsed...
-#     print("Showcases how the inner, nested date fields are not parsed correctly.")
-#     print("I am not sure why this is the case. Still investigating...")
-#     print(
-#         "The query is expected to return valid dates of sightings, which are all non-null in the sample dataset."
-#     )
-#     res = data.select(
-#         pl.col("reserve")
-#         .struct.field("species")
-#         .list.first()
-#         .struct.field("tracking")
-#         .struct.field("sightings")
-#         .first()
-#         .flatten()
-#         .struct.unnest()
-#     )
-#     print(res.collect())
-
-
 def main():
     """
     Run main script.
@@ -301,8 +281,6 @@ def main():
     print(ldf.limit(10).collect())
 
     summarize(ldf)
-
-    # fix_nested_date_parsing(ldf)
 
 
 if __name__ == "__main__":
