@@ -1,16 +1,17 @@
 import duckdb
 
 
-def compute_unique_expedition_count(con) -> int:
+def compute_unique_expedition_count(con: duckdb.DuckDBPyConnection) -> int:
     """
     Determine the distinct count of expedition IDs.
     """
-    return con.sql("SELECT COUNT(DISTINCT expedition_id) FROM expeditions").fetchall()[
-        0
-    ][0]
+    result = con.sql("SELECT COUNT(DISTINCT expedition_id) FROM expeditions").fetchone()
+    return 0 if result is None else result[0]
 
 
-def compute_unique_species_count_per_expedition(con) -> list:
+def compute_unique_species_count_per_expedition(
+    con: duckdb.DuckDBPyConnection,
+) -> duckdb.DuckDBPyRelation:
     """
     Computes the unique count of species per expedition.
     """
@@ -28,7 +29,9 @@ def compute_unique_species_count_per_expedition(con) -> list:
     """)
 
 
-def determine_tracking_issues_by_species(con) -> list:
+def determine_tracking_issues_by_species(
+    con: duckdb.DuckDBPyConnection,
+) -> duckdb.DuckDBPyRelation:
     """
     Determines the species for which tracking issues may exist/
     Uses the heuristic that the 'tagged' individuals in a sighting
@@ -55,13 +58,14 @@ def determine_tracking_issues_by_species(con) -> list:
 
 
 def count_activity_matches_per_expedition(
-    con, target_activity: str, min_activity_count: int
-) -> list:
+    con: duckdb.DuckDBPyConnection, target_activity: str, min_activity_count: int
+) -> duckdb.DuckDBPyRelation:
     """
     Fetches the expedition ids in which the target activity was sighted
     for any tracked species at least 'min_activity_count' times.
     """
-    return con.sql(f"""
+    return con.sql(
+        """
         WITH species_sightings AS (
             SELECT unnest(reserve.species).tracking.sightings AS sightings,
                    expedition_id
@@ -76,18 +80,25 @@ def count_activity_matches_per_expedition(
             SELECT expedition_id,
                    COUNT(*) AS target_activity_count
             FROM activities
-            WHERE activity = '{target_activity}'
+            WHERE activity = $target_activity
             GROUP BY expedition_id
         )
         SELECT expedition_id,
                target_activity_count
         FROM activity_counts
-        WHERE target_activity_count > {min_activity_count}
+        WHERE target_activity_count > $min_activity_count
         ORDER BY target_activity_count DESC
-    """)
+        """,
+        params={
+            "target_activity": target_activity,
+            "min_activity_count": min_activity_count,
+        },
+    )
 
 
-def compute_species_population(con) -> list:
+def compute_species_population(
+    con: duckdb.DuckDBPyConnection,
+) -> duckdb.DuckDBPyRelation:
     """
     Computes the known population of all species across all expeditions.
     """
