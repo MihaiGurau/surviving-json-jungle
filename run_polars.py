@@ -2,13 +2,15 @@ from pathlib import Path
 from typing import Collection
 
 import polars as pl
+import s3fs  # type: ignore
+from io import StringIO
 
 # Define types.
 # NOTE: used for convenience, as these structs are present at
 # multiple levels in the input data schema. Not necessary per se,
 # but I did not want to repeat myself when defining the schema.
 StructLocation = pl.Struct({"latitude": pl.Float64, "longitude": pl.Float64})
-StructHighLow = pl.Struct({"high": pl.Int32(), "low": pl.Int32()})
+StructHighLow = pl.Struct({"high": pl.Int64(), "low": pl.Int64()})
 
 
 # Define utility functions.
@@ -39,10 +41,10 @@ def build_expected_input_schema() -> pl.Schema:
                         pl.Struct(
                             {
                                 "name": pl.String(),
-                                "population": pl.Int32(),
+                                "population": pl.Int64(),
                                 "tracking": pl.Struct(
                                     {
-                                        "tagged": pl.Int32(),
+                                        "tagged": pl.Int64(),
                                         "sightings": pl.List(
                                             pl.Struct(
                                                 {
@@ -66,7 +68,8 @@ def build_expected_input_schema() -> pl.Schema:
                     "environmental_conditions": pl.Struct(
                         {
                             "rainfall_mm": StructHighLow,
-                            "temperature_c": pl.List(StructHighLow),
+                            # "temperature_c": pl.List(StructHighLow),
+                            "temperature_c": StructHighLow,
                         }
                     ),
                 }
@@ -75,11 +78,44 @@ def build_expected_input_schema() -> pl.Schema:
     )
 
 
-def read_data(path: Path) -> pl.LazyFrame:
+def read_local_data(path: Path) -> pl.LazyFrame:
     """
-    Helper to read in data using the known schema.
+    Helper to read in local data using the known schema.
     """
-    return pl.scan_ndjson(path, schema=build_expected_input_schema())
+
+    return pl.scan_ndjson(
+        path,
+        schema=build_expected_input_schema(),
+    )
+
+
+def read_cloud_data(bucket: str) -> pl.LazyFrame:
+    """
+    Helper function to read data from a public S3 bucket with
+    JSONL files using the known schema.
+
+    NOTE: ideally, we would not need to use s3fs directly,
+    but rather let Polars figure it out using 'scan_ndjson'.
+    However, this does not work in the case of our example
+    bucket, even though it's public. I've tried to add multiple
+    different 'storage_options' configs, yet generic cloud errors
+    are being thrown.
+    """
+
+    # Setting anon to true since we don't need auth to read from a public bucket.
+
+    print("Reading cloud data...")
+    s3 = s3fs.S3FileSystem(anon=True)
+    contents = (s3.read_text(file) for file in s3.ls(bucket) if file.endswith(".jsonl"))
+    docs = (doc for content in contents for doc in content.splitlines())
+
+    return pl.concat(
+        pl.scan_ndjson(
+            StringIO(doc),
+            schema=build_expected_input_schema(),
+        )
+        for doc in docs
+    )
 
 
 # Define analysis functions.
@@ -222,6 +258,19 @@ def filter_for_species_by_name(
     Filters for all species info given their name across all expeditions.
 
     NOTE: showcases filtering by element values in a list of structs.
+
+    FIXME: this returns duplicates, likely due to the randomness of input data.
+    See below example when running on S3 dataset.
+    We might need to fix this somehow...
+    ┌─────────────┬────────────┬────────┬─────────────────────────────────┐
+    │ name        ┆ population ┆ tagged ┆ sightings                       │
+    │ ---         ┆ ---        ┆ ---    ┆ ---                             │
+    │ str         ┆ i64        ┆ i64    ┆ list[struct[3]]                 │
+    ╞═════════════╪════════════╪════════╪═════════════════════════════════╡
+    │ polyphemus  ┆ 54         ┆ 22     ┆ [{"2025-01-21",{-22.328316,25.…│
+    │ dromedarius ┆ 131        ┆ 44     ┆ [{"2025-01-21",{-22.33408,25.8…│
+    │ dromedarius ┆ 168        ┆ 20     ┆ [{"2025-01-21",{-22.280339,25.…│
+    └─────────────┴────────────┴────────┴─────────────────────────────────┘
     """
 
     return (
@@ -277,8 +326,11 @@ def main():
     """
     print("Hello from surviving-json-jungle!")
 
-    ldf = read_data(Path("data/sample.jsonl"))
-    print(ldf.limit(10).collect())
+    # ldf = read_data_local(
+    #     Path("data/sample.jsonl")
+    # )  # uncomment to run with local data.
+    ldf = read_cloud_data("s3://sumeo-jungle-data-lake/jungle/")
+    print(ldf.sort("expedition_id").limit(10).collect())
 
     summarize(ldf)
 
