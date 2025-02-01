@@ -17,3 +17,6 @@ wheels/
 
 # DuckDB
 jungle.db
+
+# Environment
+.envrc
