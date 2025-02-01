@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Collection
 
-import polars as pl
+import polars as pl  # type: ignore
 import s3fs  # type: ignore
 from io import StringIO
 
