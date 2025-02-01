@@ -99,17 +99,23 @@ def read_cloud_data(bucket: str) -> pl.LazyFrame:
     However, this does not work in the case of our example
     bucket, even though it's public. I've tried to add multiple
     different 'storage_options' configs, yet generic cloud errors
-    are being thrown.
+    were being thrown.
     """
 
-    # Setting anon to true since we don't need auth to read from a public bucket.
-
     print("Reading cloud data...")
+
+    # We set 'anon' to true since we don't need auth to read from a public bucket.
     s3 = s3fs.S3FileSystem(anon=True)
     contents = (s3.read_text(file) for file in s3.ls(bucket) if file.endswith(".jsonl"))
     docs = (doc for content in contents for doc in content.splitlines())
 
     return pl.concat(
+        # Scanning does not add much benefit here, since we already read
+        # all the files in memory when downloading them using 's3fs'.
+        # It's only done because it should work without the prior download,
+        # and becuase a pl.LazyFrame is returned, which is expected by the
+        # subsequent functions in the script. Granted, we could also just
+        # call 'read_ndjson().lazy()' to get a pl.LazyFrame back...
         pl.scan_ndjson(
             StringIO(doc),
             schema=build_expected_input_schema(),
