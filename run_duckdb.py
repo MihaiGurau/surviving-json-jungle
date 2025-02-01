@@ -1,4 +1,4 @@
-import duckdb
+import duckdb  # type: ignore
 
 
 def compute_unique_expedition_count(con: duckdb.DuckDBPyConnection) -> int:
