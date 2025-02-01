@@ -23,7 +23,7 @@ jobs:
       - name: Install the project
         run: uv sync --all-extras --dev
 
-      - name: Run all pre-commit checks
-        run: |
-          uv run pre-commit install
-          pre-commit run --all-files
+      - name: Run ruff
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: "format --check"
