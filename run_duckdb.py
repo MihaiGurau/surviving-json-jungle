@@ -117,6 +117,65 @@ def compute_species_population(
     """)
 
 
+def compute_most_common_activity_for_species(
+    con: duckdb.DuckDBPyConnection,
+) -> duckdb.DuckDBPyRelation:
+    """
+    Computes the most commonly sighted activity for each species
+    across all sightings and expeditions.
+
+    This could probably be simplified. Here we're showing the nice
+    syntax of list comprehensions and list flattening in DuckDB.
+    """
+
+    return con.sql("""
+        WITH species_and_sigthtings AS (
+            SELECT
+                expedition_id,
+                end_date AS expedition_end_date,
+                unnest(reserve.species).name AS species_name,
+                unnest(reserve.species).tracking.sightings AS sightings
+            FROM expeditions
+        ),
+        activities_per_expedition_and_species AS (
+            SELECT
+                expedition_id,
+                expedition_end_date,
+                species_name,
+                [sight['activity'] FOR sight IN sightings] AS activities,
+            FROM species_and_sigthtings
+        ),
+        activities_per_species AS (
+            SELECT
+                species_name,
+                flatten(list(activities ORDER BY expedition_end_date ASC)) AS activities
+            FROM activities_per_expedition_and_species
+            GROUP BY ALL
+        ),
+        activities_unnested AS (
+            SELECT
+                species_name,
+                unnest(activities) AS activity
+            FROM activities_per_species
+        ),
+        activity_counts AS (
+            SELECT
+                species_name,
+                activity,
+                COUNT(*) as cnt
+            FROM activities_unnested
+            GROUP BY ALL
+        )
+        SELECT
+            species_name,
+            activity AS most_common_activity,
+            cnt
+        FROM activity_counts
+        QUALIFY rank() OVER (PARTITION BY species_name ORDER BY cnt DESC, activity) = 1
+        ORDER BY species_name
+    """)
+
+
 def main():
     """
     Run main script.
@@ -191,6 +250,10 @@ def main():
     activity_matches = count_activity_matches_per_expedition(con, "hunting", 2)
     print("Activity matches per expedition:")
     print(activity_matches)
+
+    most_common_activity_per_species = compute_most_common_activity_for_species(con)
+    print("Most common activities per species:")
+    print(most_common_activity_per_species)
 
 
 if __name__ == "__main__":

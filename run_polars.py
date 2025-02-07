@@ -299,6 +299,49 @@ def filter_for_species_by_name(
     )
 
 
+def compute_most_common_activity_per_species(data: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Compute the most common activity per species across all expeditions.
+    This showcases complex querying patterns that can be used in Polars,
+    such as list / struct unnesting or exploding, list mapping using
+    list.eval(pl.element()...), filtering over partitions, similar to
+    window functions, and value counts.
+    """
+    return (
+        (
+            data.select(
+                "expedition_id",
+                pl.col("end_date").alias("expedition_end_date"),
+                pl.col("reserve").struct.field("species").alias("species"),
+            )
+            .explode("species")
+            .unnest("species")
+        )
+        .select(
+            "expedition_id",
+            "expedition_end_date",
+            pl.col("name").alias("species_name"),
+            pl.col("tracking")
+            .struct.field("sightings")
+            .list.eval(pl.element().struct.field("activity"))
+            .alias("activities"),
+        )
+        .sort("species_name", "expedition_end_date", "expedition_id")
+        .group_by("species_name", maintain_order=True)
+        .agg(
+            pl.concat_list("activities")
+            .flatten()
+            .explode()
+            .value_counts()
+            .alias("activity_counts")
+        )
+        .explode("activity_counts")
+        .unnest("activity_counts")
+        .filter(pl.col("count") == pl.max("count").over("species_name"))
+        .select("species_name", pl.col("activities").alias("activity"), "count")
+    )
+
+
 def summarize(data: pl.LazyFrame) -> None:
     """
     Print data summaries by applying multiple analytical functions.
@@ -325,6 +368,11 @@ def summarize(data: pl.LazyFrame) -> None:
 
         print(filter_for_species_by_name(data, ["polyphemus", "dromedarius"]).collect())
 
+        print(
+            "Most common activity per species:",
+            compute_most_common_activity_per_species(data).collect(),
+        )
+
 
 def main():
     """
@@ -332,7 +380,7 @@ def main():
     """
     print("Hello from surviving-json-jungle!")
 
-    # ldf = read_data_local(
+    # ldf = read_local_data(
     #     Path("data/sample.jsonl")
     # )  # uncomment to run with local data.
     ldf = read_cloud_data("s3://sumeo-jungle-data-lake/jungle/")
