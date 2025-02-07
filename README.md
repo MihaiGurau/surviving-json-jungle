@@ -22,11 +22,4 @@ Run the DuckDB script.
 make run-duckdb
 ```
 
-## TODO
-
-- [x] Add DuckDB processing scripts.
-- [x] Refine transformations, keeping only what's necessary.
-- [ ] Look into query plans?
-- [ ] Add some testing for better checks that the transformations work well.
-
 [uv-install-docs]: https://docs.astral.sh/uv/getting-started/installation/
