@@ -30,8 +30,8 @@ def build_expected_input_schema() -> pl.Schema:
     return pl.Schema(
         {
             "expedition_id": pl.String(),
-            "start_date": pl.Date(),
-            "end_date": pl.Date(),
+            "start_date": pl.String(),
+            "end_date": pl.String(),
             "expedition_location": StructLocation,
             "reserve": pl.Struct(
                 {
@@ -41,19 +41,13 @@ def build_expected_input_schema() -> pl.Schema:
                         pl.Struct(
                             {
                                 "name": pl.String(),
-                                "population": pl.Int64(),
+                                "population": pl.UInt64(),
                                 "tracking": pl.Struct(
                                     {
-                                        "tagged": pl.Int64(),
+                                        "tagged": pl.UInt64(),
                                         "sightings": pl.List(
                                             pl.Struct(
                                                 {
-                                                    # NOTE: parsing nested dates does not work (i.e., returns 'null').
-                                                    # Ideally, we'd want the 'date' field to be of type 'pl.Date'.
-                                                    # However, this will result in all 'null' values, even though
-                                                    # all dates in the sample input data are valid :(
-                                                    # Therefore, we keep it as a string here and we can attempt to
-                                                    # parse it as a date later. This seems rather tricky though...
                                                     "date": pl.String(),
                                                     "location": StructLocation,
                                                     "activity": pl.String(),
@@ -68,7 +62,6 @@ def build_expected_input_schema() -> pl.Schema:
                     "environmental_conditions": pl.Struct(
                         {
                             "rainfall_mm": StructHighLow,
-                            # "temperature_c": pl.List(StructHighLow),
                             "temperature_c": StructHighLow,
                         }
                     ),
@@ -100,6 +93,12 @@ def read_cloud_data(bucket: str) -> pl.LazyFrame:
     bucket, even though it's public. I've tried to add multiple
     different 'storage_options' configs, yet generic cloud errors
     were being thrown.
+
+    For what it's worth, you can try running the below code if you want.
+    Maybe you won't get the same errors that I am encountering :)
+
+    >>> s3_path = "s3://sumeo-jungle-data-lake/jungle/*.jsonl"
+    >>> return pl.scan_ndjson(s3_path, schema=build_expected_input_schema())
     """
 
     print("Reading cloud data...")
