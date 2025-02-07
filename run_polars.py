@@ -88,11 +88,14 @@ def read_cloud_data(bucket: str) -> pl.LazyFrame:
     JSONL files using the known schema.
 
     NOTE: ideally, we would not need to use s3fs directly,
-    but rather let Polars figure it out using 'scan_ndjson'.
+    but rather let Polars figure it out using `scan_ndjson`.
     However, this does not work in the case of our example
     bucket, even though it's public. I've tried to add multiple
     different 'storage_options' configs, yet generic cloud errors
-    were being thrown.
+    were being thrown. This method of using `s3fs` in this way
+    prevents errors on my machine, but it also means that lazy
+    loading is kinda moot, since the whole data set will likely be
+    loaded into memory when running `s3.read_text` anyway...
 
     For what it's worth, you can try running the below code if you want.
     Maybe you won't get the same errors that I am encountering :)
